@@ -34,6 +34,8 @@
         const Mail = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>;
         const CreditCard = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>;
         const UserPlus = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>;
+        const Copy = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>;
+        const Check = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="20 6 9 17 4 12"/></svg>;
 
 
         // --- APLICACIÓN PRINCIPAL ---
@@ -41,6 +43,12 @@
           const currentYearForCalculation = 2026;
 
           const [logoError, setLogoError] = useState(false);
+          const [ibanCopied, setIbanCopied] = useState(false);
+          const copyIban = () => {
+            navigator.clipboard.writeText('ES28 3058 7001 1328 1040 7587');
+            setIbanCopied(true);
+            setTimeout(() => setIbanCopied(false), 2000);
+          };
           const [isFamiliaNumerosa, setIsFamiliaNumerosa] = useState(false);
           const [members, setMembers] = useState([
             {
@@ -85,7 +93,7 @@
           const currentMonth = today.getMonth() + 1;
           const currentDay = today.getDate();
           let period = "normal";
-          if ((currentMonth === 5 && currentDay >= 9) || (currentMonth === 6 && currentDay <= 19)) {
+          if ((currentMonth === 5 && currentDay >= 8) || (currentMonth === 6 && currentDay <= 19)) {
             period = "retraso";
           } else if ((currentMonth === 6 && currentDay >= 20) || currentMonth > 6) {
             period = "fuera_de_plazo";
@@ -102,6 +110,11 @@
             let retrasoFee = 0;
             let isBaja = false;
 
+            // En fuera_de_plazo: solo se admiten nuevas altas, sin descuentos de fundador
+            const effectiveIsNewMember = period === "fuera_de_plazo" ? true : member.isNewMember;
+            const effectiveIsFundador = period === "fuera_de_plazo" ? false : member.isFundador;
+            const effectiveIsConyugeFundador = period === "fuera_de_plazo" ? false : member.isConyugeFundador;
+
             if (age <= 4) {
               category = "Menor de 4 años";
               baseFee = 0;
@@ -109,25 +122,32 @@
             } else if (age <= 6) {
               category = "Infantil";
               baseFee = member.parentsAreMembers ? 0 : 100;
-              altaFee = member.isNewMember ? (member.parentsAreMembers ? 0 : 50) : 0;
+              altaFee = effectiveIsNewMember ? (member.parentsAreMembers ? 0 : 50) : 0;
             } else if (age <= 17) {
               category = "Aspirante";
               baseFee = member.parentsAreMembers ? 88 : 100;
-              altaFee = member.isNewMember ? 50 : 0;
+              altaFee = effectiveIsNewMember ? 50 : 0;
             } else {
               // De 18 años en adelante, por defecto todos son Numerarios a 100€
               category = "Numerario";
               baseFee = 100;
-              altaFee = member.isNewMember ? 50 : 0;
+              altaFee = effectiveIsNewMember ? 50 : 0;
 
-              // Solo aplicamos beneficios si son Fundadores o Cónyuges de Fundador
-              if (member.isFundador || member.isConyugeFundador) {
+              // Fundador: prejubilado a 59€ (60-64) y jubilado gratis (65+)
+              if (effectiveIsFundador) {
                 if (age >= 60 && age <= 64) {
                   category = "Prejubilado";
                   baseFee = 59;
                 } else if (age >= 65) {
                   category = "Jubilado";
                   baseFee = 0;
+                }
+              }
+              // Cónyuge de Fundador: sin descuento en prejubilado, jubilado a 68€
+              if (effectiveIsConyugeFundador) {
+                if (age >= 65) {
+                  category = "Jubilado";
+                  baseFee = 68;
                 }
               }
             }
@@ -138,12 +158,12 @@
             }
 
             // Aplicar recargo si estamos en fecha y no es alta nueva
-            if (period === "retraso" && !member.isNewMember) {
-              retrasoFee = 10; 
+            if (period === "retraso" && !effectiveIsNewMember) {
+              retrasoFee = 10;
             }
 
             // Aplicar baja si estamos fuera de plazo y no es alta nueva
-            if (period === "fuera_de_plazo" && !member.isNewMember) {
+            if (period === "fuera_de_plazo" && !effectiveIsNewMember) {
               isBaja = true;
               baseFee = 0;
               altaFee = 0;
@@ -152,7 +172,7 @@
 
             const total = baseFee + altaFee + retrasoFee;
 
-            const isChild = age >= 5 && age <= 25; 
+            const isChild = (age >= 5 && age <= 25) || member.isDiscapacitado;
             const refundAmount = (isFamiliaNumerosa && isChild && baseFee > 0) ? (baseFee * 0.2) : 0;
 
             return { age, category, baseFee, altaFee, retrasoFee, isBaja, total, refundAmount };
@@ -162,31 +182,32 @@
           const grandTotal = results.reduce((sum, m) => sum + m.total, 0);
           const totalRefund = results.reduce((sum, m) => sum + m.refundAmount, 0);
           
-          const hasNewMembers = members.some(m => m.isNewMember);
+          const hasNewMembers = period === "fuera_de_plazo" || members.some(m => m.isNewMember);
           const hasLittleKids = results.some(m => !m.isBaja && m.age <= 6);
+          const hasEligibleChild = results.some(m => !m.isBaja && ((m.age >= 5 && m.age <= 25) || m.isDiscapacitado) && m.baseFee > 0);
 
           return (
             <div className="min-h-screen bg-slate-100 py-8 px-4 font-sans text-slate-800 print:bg-white print:py-0">
               <div className="max-w-xl mx-auto space-y-6">
                 
-                <div className="bg-gradient-to-br from-blue-700 to-cyan-600 p-6 text-white text-center rounded-3xl shadow-lg relative z-10 print:shadow-none print:rounded-xl print:pb-0">
+                <div className="bg-gradient-to-br from-blue-700 to-cyan-600 px-4 py-3 text-white rounded-2xl shadow-lg flex items-center gap-3 print:shadow-none print:rounded-xl">
                   {!logoError ? (
-                    <div className="bg-white/10 p-4 rounded-3xl inline-block mb-3 backdrop-blur-sm print:bg-transparent print:p-0">
-                      <img 
-                        src="logo.png" 
-                        alt="Escudo San Antonio" 
-                        className="h-28 w-auto mx-auto object-contain drop-shadow-xl print:drop-shadow-none print:h-20"
-                        onError={() => setLogoError(true)}
-                      />
-                    </div>
+                    <img
+                      src="logo.png"
+                      alt="Escudo San Antonio"
+                      className="h-14 w-auto object-contain drop-shadow-md flex-shrink-0 print:h-12"
+                      onError={() => setLogoError(true)}
+                    />
                   ) : (
-                    <Users className="w-12 h-12 mx-auto mb-3 opacity-90" />
+                    <Users className="w-10 h-10 opacity-90 flex-shrink-0" />
                   )}
-                  <h1 className="text-2xl font-bold tracking-tight mb-1">Calculadora Cuota 2026</h1>
-                  <p className="text-blue-100 text-sm font-medium print:text-slate-800">Club Deportivo y Musical San Antonio</p>
-                  <div className="flex items-center justify-center gap-1.5 mt-2 text-blue-200 text-xs font-medium print:text-slate-600">
-                    <Mail className="w-3.5 h-3.5" />
-                    <a href="mailto:clubdeportivoymusical@gmail.com" className="hover:text-white transition-colors">clubdeportivoymusical@gmail.com</a>
+                  <div className="min-w-0">
+                    <h1 className="text-lg font-bold tracking-tight leading-tight uppercase">Calculadora Cuota 2026</h1>
+                    <p className="text-blue-100 text-xs font-medium print:text-slate-800">Club Deportivo y Musical San Antonio</p>
+                    <div className="flex items-center gap-1 mt-0.5 text-blue-200 text-xs print:text-slate-600">
+                      <Mail className="w-3 h-3 flex-shrink-0" />
+                      <a href="mailto:clubdeportivoymusical@gmail.com" className="hover:text-white transition-colors truncate">clubdeportivoymusical@gmail.com</a>
+                    </div>
                   </div>
                 </div>
 
@@ -240,11 +261,12 @@
 
                         <div className="space-y-2 bg-slate-50 p-3 rounded-xl">
                           <label className="flex items-center space-x-3 cursor-pointer">
-                            <input 
-                              type="checkbox" 
-                              checked={member.isNewMember}
+                            <input
+                              type="checkbox"
+                              checked={period === "fuera_de_plazo" ? true : member.isNewMember}
+                              disabled={period === "fuera_de_plazo"}
                               onChange={(e) => updateMember(member.id, 'isNewMember', e.target.checked)}
-                              className="w-5 h-5 rounded border-slate-300 text-blue-600"
+                              className="w-5 h-5 rounded border-slate-300 text-blue-600 disabled:opacity-60"
                             />
                             <span className="text-sm text-slate-700">Paga cuota de alta (Nuevo)</span>
                           </label>
@@ -259,36 +281,46 @@
                             <span className="text-sm text-slate-700">Discapacidad acreditada</span>
                           </label>
 
-                          <label className="flex items-center space-x-3 cursor-pointer">
-                            <input 
-                              type="checkbox" 
-                              checked={member.isFundador}
-                              onChange={(e) => {
-                                updateMember(member.id, 'isFundador', e.target.checked);
-                                if(e.target.checked) updateMember(member.id, 'isConyugeFundador', false);
-                              }}
-                              className="w-5 h-5 rounded border-slate-300 text-blue-600"
-                            />
-                            <span className="text-sm text-slate-700">Socio Fundador</span>
-                          </label>
+                          {period !== "fuera_de_plazo" && (
+                            <label className="flex items-center space-x-3 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={member.isFundador}
+                                onChange={(e) => {
+                                  updateMember(member.id, 'isFundador', e.target.checked);
+                                  if(e.target.checked) updateMember(member.id, 'isConyugeFundador', false);
+                                }}
+                                className="w-5 h-5 rounded border-slate-300 text-blue-600"
+                              />
+                              <span className="text-sm text-slate-700">Socio Fundador</span>
+                            </label>
+                          )}
 
-                          <label className="flex items-center space-x-3 cursor-pointer">
-                            <input 
-                              type="checkbox" 
-                              checked={member.isConyugeFundador}
-                              onChange={(e) => {
-                                updateMember(member.id, 'isConyugeFundador', e.target.checked);
-                                if(e.target.checked) updateMember(member.id, 'isFundador', false);
-                              }}
-                              className="w-5 h-5 rounded border-slate-300 text-blue-600"
-                            />
-                            <span className="text-sm text-slate-700">Cónyuge de Fundador</span>
-                          </label>
+                          {period !== "fuera_de_plazo" && (
+                            <label className="flex items-center space-x-3 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={member.isConyugeFundador}
+                                onChange={(e) => {
+                                  updateMember(member.id, 'isConyugeFundador', e.target.checked);
+                                  if(e.target.checked) updateMember(member.id, 'isFundador', false);
+                                }}
+                                className="w-5 h-5 rounded border-slate-300 text-blue-600"
+                              />
+                              <span className="text-sm text-slate-700">Cónyuge de Fundador</span>
+                            </label>
+                          )}
 
-                          {(member.isFundador || member.isConyugeFundador) && member.age < 60 && (
+                          {period !== "fuera_de_plazo" && member.isFundador && member.age < 60 && (
                             <p className="text-xs text-amber-600 mt-1 ml-8 flex items-start">
                               <AlertCircle className="w-3 h-3 mr-1 mt-0.5 flex-shrink-0" />
                               Esta condición solo aplica descuento a partir de los 60 años.
+                            </p>
+                          )}
+                          {period !== "fuera_de_plazo" && member.isConyugeFundador && member.age < 65 && (
+                            <p className="text-xs text-amber-600 mt-1 ml-8 flex items-start">
+                              <AlertCircle className="w-3 h-3 mr-1 mt-0.5 flex-shrink-0" />
+                              Esta condición solo aplica descuento a partir de los 65 años.
                             </p>
                           )}
 
@@ -325,7 +357,6 @@
 
                         <div className="flex justify-between items-center pt-3">
                           <div className="text-xs text-slate-500">
-                            {!member.isBaja && <div>Base: {member.baseFee.toFixed(2)}€</div>}
                             {!member.isBaja && member.altaFee > 0 && <div>Alta: {member.altaFee.toFixed(2)}€</div>}
                             {!member.isBaja && member.retrasoFee > 0 && <div className="text-amber-600 font-bold">Recargo: {member.retrasoFee.toFixed(2)}€</div>}
                           </div>
@@ -347,7 +378,7 @@
                   Añadir otro familiar
                 </button>
 
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                {hasEligibleChild && <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
                   <label className="flex items-start space-x-3 cursor-pointer">
                     <input 
                       type="checkbox" 
@@ -362,7 +393,7 @@
                       </span>
                     </div>
                   </label>
-                </div>
+                </div>}
 
                 <div id="resumen-captura" className="bg-blue-50 rounded-3xl p-6 border border-blue-200 shadow-md print:shadow-none print:border-2 print:border-blue-100 print:bg-white">
                   <h2 className="text-sm font-bold text-blue-800 uppercase tracking-wider mb-4">Resumen Familiar 2026</h2>
@@ -387,7 +418,7 @@
                     <div className="mt-4 bg-blue-100 text-blue-900 p-4 rounded-xl text-sm flex items-start gap-3 shadow-sm border border-blue-200">
                       <Info className="w-6 h-6 flex-shrink-0 mt-0.5 text-blue-600" />
                       <p>
-                        <strong>El periodo de pago ordinario comienza el 29 de marzo.</strong> Los recibos domiciliados se pasarán el 8 de mayo.
+                        <strong>El periodo de pago ordinario comienza el 29 de marzo.</strong> Los recibos domiciliados se pasarán el 7 de mayo.
                       </p>
                     </div>
                   )}
@@ -425,49 +456,22 @@
                   {totalRefund > 0 && (
                     <div className="mt-4 bg-green-100 text-green-800 p-4 rounded-xl text-sm flex items-start gap-3 shadow-sm print:bg-green-50 print:border print:border-green-300">
                       <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5 text-green-600" />
-                      <p>
-                        <strong>Bonificación por Familia Numerosa:</strong> Recuerda presentar tu carnet en vigor para que te devuelvan <strong>{totalRefund.toFixed(2)}€</strong> de estas cuotas.
-                      </p>
+                      <div>
+                        <p><strong>Bonificación por Familia Numerosa:</strong> Recuerda presentar tu carnet en vigor para que te devuelvan <strong>{totalRefund.toFixed(2)}€</strong> de estas cuotas.</p>
+                        <ul className="mt-2 space-y-0.5 text-xs text-green-700">
+                          {results.filter(m => m.refundAmount > 0).map(m => (
+                            <li key={m.id}>{m.name}: {m.baseFee.toFixed(2)}€ × 20% = <strong>{m.refundAmount.toFixed(2)}€</strong></li>
+                          ))}
+                        </ul>
+                      </div>
                     </div>
                   )}
                 </div>
 
                 <div className="space-y-3 pb-8">
                   
-                  {/* Forma de Pago */}
-                  <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 print:border-gray-200">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="bg-indigo-50 p-2 rounded-full text-indigo-600 print:bg-white print:border print:border-indigo-200">
-                        <CreditCard className="w-5 h-5" />
-                      </div>
-                      <h3 className="font-bold text-slate-800 uppercase tracking-wider text-xs">Forma de Pago</h3>
-                    </div>
-                    <ul className="space-y-4 text-sm text-slate-600">
-                      <li className="flex items-start gap-2">
-                        <span className="text-indigo-500 font-bold mt-0.5">•</span>
-                        <div className="w-full">
-                          <span><strong>Domiciliado:</strong> No tienes que hacer nada, el recibo se cargará automáticamente en tu cuenta el <strong>8 de mayo</strong>. Si necesitas cambiar el número de cuenta, puedes hacerlo hasta el <strong>30 de abril</strong>.</span>
-                          <span className="block mt-2 text-indigo-800 bg-indigo-50 p-2.5 rounded-lg border border-indigo-100 text-xs print:border-none print:p-0 print:mt-1 print:bg-transparent print:text-slate-600">
-                            <strong>¡Importante!</strong> Si detectas algún error en el cobro, por favor, ponte en contacto con nosotros <strong>antes</strong> de devolver el recibo por el banco para evitar gastos de devolución innecesarios.
-                          </span>
-                        </div>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-indigo-500 font-bold mt-0.5">•</span>
-                        <div className="w-full">
-                          <span><strong>Por transferencia:</strong></span>
-                          <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 mt-2 text-xs md:text-sm print:border-none print:p-0 print:mt-1">
-                            <span className="block mb-1"><strong>TITULAR:</strong> Club Deportivo y Musical</span>
-                            <span className="block mb-1"><strong>IBAN:</strong> ES28 3058 7001 1328 1040 7587</span>
-                            <span className="block"><strong>CONCEPTO:</strong> Nombre/s de los socio/s</span>
-                          </div>
-                        </div>
-                      </li>
-                    </ul>
-                  </div>
-
                   {/* Calendario de Pagos */}
-                  <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 print:border-gray-200">
+                  {period !== "fuera_de_plazo" && <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 print:border-gray-200">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="bg-blue-50 p-2 rounded-full text-blue-600 print:bg-white print:border print:border-blue-200">
                         <Calendar className="w-5 h-5" />
@@ -475,17 +479,17 @@
                       <h3 className="font-bold text-slate-800 uppercase tracking-wider text-xs">Calendario de Pagos 2026</h3>
                     </div>
                     <ul className="space-y-2 text-sm text-slate-600">
-                      <li className={`flex items-start gap-2 rounded-lg p-2 -mx-2 ${(period === "normal" || isPrePeriod) ? 'bg-green-50 border border-green-200' : ''}`}>
+                      <li className={`flex items-start gap-2 rounded-lg p-2 -mx-2 ${(period === "normal" && !isPrePeriod) ? 'bg-green-50 border border-green-200' : ''}`}>
                         <span className="text-green-500 font-bold mt-0.5 flex-shrink-0">•</span>
                         <span className="flex-1">
-                          <strong>Período ordinario:</strong> Del 29 de marzo al <strong>8 de mayo</strong> (este día se pasarán los recibos por el banco).
+                          <strong>Período ordinario:</strong> Del 29 de marzo al <strong>7 de mayo</strong> (este día se pasarán los recibos por el banco).
                           {period === "normal" && !isPrePeriod && <span className="ml-2 inline-block bg-green-500 text-white text-xs font-bold px-1.5 py-0.5 rounded">AHORA</span>}
                         </span>
                       </li>
                       <li className={`flex items-start gap-2 rounded-lg p-2 -mx-2 ${period === "retraso" ? 'bg-amber-50 border border-amber-200' : ''}`}>
                         <span className="text-amber-500 font-bold mt-0.5 flex-shrink-0">•</span>
                         <span className="flex-1">
-                          <strong>Con retraso:</strong> Del 9 de mayo al 19 de junio. Se aplicará un recargo de 10 € por persona.
+                          <strong>Con retraso:</strong> Del 8 de mayo al 19 de junio. Se aplicará un recargo de 10 € por persona.
                           {period === "retraso" && <span className="ml-2 inline-block bg-amber-500 text-white text-xs font-bold px-1.5 py-0.5 rounded">AHORA</span>}
                         </span>
                       </li>
@@ -495,6 +499,48 @@
                           <strong>Fuera de plazo:</strong> A partir del 20 de junio solo se admitirán nuevas altas. El impago posterior a esta fecha conlleva la <strong>baja automática</strong> del club.
                           {period === "fuera_de_plazo" && <span className="ml-2 inline-block bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded">AHORA</span>}
                         </span>
+                      </li>
+                    </ul>
+                  </div>}
+
+                  {/* Forma de Pago */}
+                  <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 print:border-gray-200">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="bg-indigo-50 p-2 rounded-full text-indigo-600 print:bg-white print:border print:border-indigo-200">
+                        <CreditCard className="w-5 h-5" />
+                      </div>
+                      <h3 className="font-bold text-slate-800 uppercase tracking-wider text-xs">Forma de Pago</h3>
+                    </div>
+                    <ul className="space-y-4 text-sm text-slate-600">
+                      {period !== "fuera_de_plazo" && (
+                        <li className="flex items-start gap-2">
+                          <span className="text-indigo-500 font-bold mt-0.5">•</span>
+                          <div className="w-full">
+                            <span><strong>Domiciliado:</strong> No tienes que hacer nada, el recibo se cargará automáticamente en tu cuenta el <strong>7 de mayo</strong>. Si necesitas cambiar el número de cuenta, puedes hacerlo hasta el <strong>30 de abril</strong>.</span>
+                            <span className="block mt-2 text-indigo-800 bg-indigo-50 p-2.5 rounded-lg border border-indigo-100 text-xs print:border-none print:p-0 print:mt-1 print:bg-transparent print:text-slate-600">
+                              <strong>¡Importante!</strong> Si detectas algún error en el cobro, por favor, ponte en contacto con nosotros <strong>antes</strong> de devolver el recibo por el banco para evitar gastos de devolución innecesarios.
+                            </span>
+                          </div>
+                        </li>
+                      )}
+                      <li className="flex items-start gap-2">
+                        <span className="text-indigo-500 font-bold mt-0.5">•</span>
+                        <div className="w-full">
+                          <span><strong>Por transferencia:</strong></span>
+                          <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 mt-2 text-xs md:text-sm print:border-none print:p-0 print:mt-1">
+                            <span className="block mb-1"><strong>TITULAR:</strong> Club Deportivo y Musical</span>
+                            <span className="flex items-center gap-2 mb-1">
+                              <span><strong>IBAN:</strong> ES28 3058 7001 1328 1040 7587</span>
+                              <button onClick={copyIban} className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold transition-colors print:hidden ${ibanCopied ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}>
+                                {ibanCopied ? <><Check className="w-3 h-3" />Copiado</> : <><Copy className="w-3 h-3" />Copiar</>}
+                              </button>
+                            </span>
+                            <span className="block"><strong>CONCEPTO:</strong> Nombre/s de los socio/s</span>
+                          </div>
+                          <span className="block mt-2 text-indigo-800 bg-indigo-50 p-2.5 rounded-lg border border-indigo-100 text-xs print:border-none print:p-0 print:mt-1 print:bg-transparent print:text-slate-600">
+                            Una vez realizada la transferencia, envía el justificante a <strong>clubdeportivoymusical@gmail.com</strong> indicando el nombre de los socios.
+                          </span>
+                        </div>
                       </li>
                     </ul>
                   </div>
