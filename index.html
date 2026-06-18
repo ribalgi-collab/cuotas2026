@@ -13,7 +13,10 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     
     <!-- Cargamos Babel para que el navegador entienda el código -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- IMPORTANTE: fijamos la v7. Babel 8 cambió el runtime JSX por defecto a "automatic"
+         (inyecta «import ... from "react/jsx-runtime"»), lo que rompe esta página al no ser
+         un módulo. La v7 usa el runtime "classic" (React.createElement) que este código necesita. -->
+    <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
 
     <style>
       /* En móvil, suben los tamaños de texto para mejor legibilidad */
