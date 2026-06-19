@@ -123,7 +123,6 @@
             let baseFee = 0;
             let altaFee = 0;
             let retrasoFee = 0;
-            let isBaja = false;
 
             // En fuera_de_plazo: solo se admiten nuevas altas, sin descuentos de fundador
             const effectiveIsNewMember = period === "fuera_de_plazo" ? true : member.isNewMember;
@@ -177,20 +176,12 @@
               retrasoFee = 10;
             }
 
-            // Aplicar baja si estamos fuera de plazo y no es alta nueva
-            if (period === "fuera_de_plazo" && !effectiveIsNewMember) {
-              isBaja = true;
-              baseFee = 0;
-              altaFee = 0;
-              retrasoFee = 0;
-            }
-
             const total = baseFee + altaFee + retrasoFee;
 
             const isChild = (age >= 5 && age <= 25) || member.isDiscapacitado;
             const refundAmount = (isFamiliaNumerosa && isChild && baseFee > 0) ? (baseFee * 0.2) : 0;
 
-            return { age, category, baseFee, altaFee, retrasoFee, isBaja, total, refundAmount };
+            return { age, category, baseFee, altaFee, retrasoFee, total, refundAmount };
           };
 
           const results = members.map(m => ({ ...m, ...calculateMember(m) }));
@@ -198,8 +189,8 @@
           const totalRefund = results.reduce((sum, m) => sum + m.refundAmount, 0);
           
           const hasNewMembers = period === "fuera_de_plazo" || members.some(m => m.isNewMember);
-          const hasLittleKids = results.some(m => !m.isBaja && m.age <= 6);
-          const hasEligibleChild = results.some(m => !m.isBaja && ((m.age >= 5 && m.age <= 25) || m.isDiscapacitado) && m.baseFee > 0);
+          const hasLittleKids = results.some(m => m.age <= 6);
+          const hasEligibleChild = results.some(m => ((m.age >= 5 && m.age <= 25) || m.isDiscapacitado) && m.baseFee > 0);
 
           return (
             <div className="min-h-screen bg-slate-100 py-3 px-3 sm:py-8 sm:px-4 font-sans text-slate-800 print:bg-white print:py-0">
@@ -361,25 +352,15 @@
                             <span className="text-xs text-slate-500 leading-tight">años en 2026</span>
                             <span className="text-sm text-blue-600 font-bold uppercase tracking-wide mt-1">{member.category}</span>
                             <div className="mt-auto pt-6 flex flex-col items-end gap-0.5">
-                              {!member.isBaja && member.altaFee > 0 && <span className="text-xs text-slate-500">Alta: {member.altaFee.toFixed(2)}€</span>}
-                              {!member.isBaja && member.retrasoFee > 0 && <span className="text-xs text-amber-600 font-bold">Recargo: {member.retrasoFee.toFixed(2)}€</span>}
-                              <span className={`text-2xl font-extrabold ${member.isBaja ? 'text-red-500' : 'text-slate-800'}`}>
-                                {member.isBaja ? '0 €' : `${member.total.toFixed(2)} €`}
+                              {member.altaFee > 0 && <span className="text-xs text-slate-500">Alta: {member.altaFee.toFixed(2)}€</span>}
+                              {member.retrasoFee > 0 && <span className="text-xs text-amber-600 font-bold">Recargo: {member.retrasoFee.toFixed(2)}€</span>}
+                              <span className="text-2xl font-extrabold text-slate-800">
+                                {member.total.toFixed(2)} €
                               </span>
                             </div>
                           </div>
 
                         </div>
-
-                        {member.isBaja && (
-                          <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl mt-3 flex items-start gap-3 shadow-sm print:border-red-400">
-                            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                            <div className="text-sm">
-                              <p className="font-bold">Fuera de plazo: Baja automática</p>
-                              <p className="mt-1">A partir del 20 de junio no se admiten renovaciones. Si quieres volver a inscribirte en el club, debes marcar la casilla de "Paga cuota de alta (Nuevo)".</p>
-                            </div>
-                          </div>
-                        )}
 
                       </div>
                     </div>
@@ -417,8 +398,8 @@
                   <div className="space-y-3 mb-5">
                     {results.map(m => (
                       <div key={m.id} className="flex justify-between text-sm text-slate-700 border-b border-blue-100 pb-2 last:border-0 last:pb-0">
-                        <span className="truncate pr-4">{m.name} ({m.isBaja ? 'Baja' : m.category})</span>
-                        <span className={`font-semibold whitespace-nowrap ${m.isBaja ? 'text-red-500' : ''}`}>
+                        <span className="truncate pr-4">{m.name} ({m.category})</span>
+                        <span className="font-semibold whitespace-nowrap">
                           {m.total.toFixed(2)} €
                         </span>
                       </div>
